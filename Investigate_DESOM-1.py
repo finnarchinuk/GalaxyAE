@@ -38,19 +38,8 @@ Xmin=X[:20000,:]
 Y_test=Table.read('Y_test250k.fits')
 Ymin=Y_test[:20000]
 
-def get_distance_map(desom, X):
-    y_pred = desom.predict(X)
-    return desom.map_dist(y_pred)
-
 # ---------- Bin each spectrum into the best node -------------
-best_node=np.zeros((Xmin.shape[0]))
-dist_map = get_distance_map(som, Xmin)
-for i in range(Xmin.shape[0]):
-    temp_dist_map=dist_map[i].flatten()
-    temp_min=temp_dist_map.min()
-    best_node[i]=np.where(temp_dist_map == temp_min)[0]
-    
-Ymin['bmu']=best_node
+Ymin['bmu']=som.predict(Xmin)
 
 ########### CELL3
 ''' Colour SOM map by a parameter
@@ -199,30 +188,20 @@ import matplotlib as mpl
 import matplotlib.cm as cm
 
 data_path='data/gal_split_100/'
-MaNGA_SUFFIX=44219 #galaxy 1-44219
+MaNGA_SUFFIX=44219      #galaxy 1-44219
 
 ATTR='r_re_light' #Color spectra by this attribute
 #ATTR='logMS_dens_kpc'
 
-def get_distance_map(desom, X):
-    y_pred = desom.predict(X)
-    return desom.map_dist(y_pred)
-
 # ------------------------ LOAD DATA --------------------
-test_gal=np.load(data_path+str(MaNGA_SUFFIX)+'.npy')    #load spectra
+test_gal=np.load(data_path+str(MaNGA_SUFFIX)+'.npy')    #load spectra for this galaxy
 test_gal=StandardScaler().fit_transform(test_gal.T).T   #normalize spectra
 #
 Y_info=Table.read(data_path+str(MaNGA_SUFFIX)+'_info.fits') #load data
 
 #----------------- FIX OR ADD DATA -------------------------
 ''' add BMU '''
-best_node=np.zeros((test_gal.shape[0]))
-dist_map = get_distance_map(som, test_gal)
-for i in range(test_gal.shape[0]):
-    temp_dist_map=dist_map[i].flatten()
-    temp_min=temp_dist_map.min()
-    best_node[i]=np.where(temp_dist_map == temp_min)[0]
-Y_info['bmu']=best_node
+Y_info['bmu']=som.predict(test_gal)
 
 '''The suffix of the mangaID. (used for filing)'''
 r=np.array(Y_info['mangaID'],dtype='str')
