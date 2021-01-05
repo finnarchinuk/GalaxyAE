@@ -76,3 +76,20 @@ a,b=get_samples(NUM_SPECTRA) # "b" is the associated dataset.
 #b.write(PULLED_DATA_PATH+'.fits',format='fits') #save datatab
 
 train_test_split()
+
+
+
+# Generate gal_unique_indexes.npy
+# This is an array of the MaNGA suffixes which will later be used for looping through galaxies separately.
+z=Table.read(path+'datatab0.fits')
+for i in range(1,10):
+    z=vstack([z,Table.read(path+'datatab'+str(i)+'.fits')])
+y=np.unique(z['mangaID'])
+
+y2=np.zeros(4609) #there are 4609 galaxies.
+for i in range(4609):
+    y2[i]=y[i].split('-')[1] #removes the prefix and dash
+y2.sort()
+
+np.save('gal_unique_indexes.npy',y2)
+print('saved gal_unique_indexes.npy')
