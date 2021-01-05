@@ -7,7 +7,7 @@ What is all this?
 
 How the code was run:
 
-Step 1: Split data (select_spectra_jul18.py)
+Step 1: Split data (Split_data.py)
 
 There are ~1 million spectra from ~4_600 galaxies. We use ~200_000 spectra randomly sampled from these 4_600 galaxies for training.
 Data used in this project are in two types: the spectra and parameters. Parameters are pulled from spectra or are metadata from observation (such as r_re_light).
