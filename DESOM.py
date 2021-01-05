@@ -11,7 +11,7 @@ from keras.models import Model
 from keras import optimizers
 
 from SOM import SOMLayer
-from conv1DAE import cnn_1dae
+from CNN_1DAE import CNN_1DAE
 
 def som_loss(weights, distances):
     """
