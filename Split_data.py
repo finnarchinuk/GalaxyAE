@@ -5,13 +5,11 @@ from astropy.io import fits
 from astropy.table import Table, vstack
 
 
-NUM_SPECTRA = 250_000
+NUM_SPECTRA = 400_000
 SPEC_SIZE = 4544                 # number of data points for each spectrum
-PULLED_SPEC_PATH ='spec400k'     #saved as .npy
 TRAIN_SPEC_PATH = 'X_train400k'
 TEST_SPEC_PATH =  'X_test400k'
 
-PULLED_DATA_PATH ='data400k' #saved as .fits
 TRAIN_DATA_PATH = 'Y_train400k'
 TEST_DATA_PATH =  'Y_test400k'
 
@@ -70,17 +68,14 @@ def train_test_split():
 # --------
 a,b=get_samples(NUM_SPECTRA) # "b" is the associated dataset.
 
-# Save the subset of spectra and data before being split into training and test set
-# This was used in debugging, no longer necessary.
-#np.save(PULLED_SPEC_PATH+'.npy',a) #save spectra
-#b.write(PULLED_DATA_PATH+'.fits',format='fits') #save datatab
-
 train_test_split()
 
 
-
+# ----------------
 # Generate gal_unique_indexes.npy
 # This is an array of the MaNGA suffixes which will later be used for looping through galaxies separately.
+# ---------------
+
 z=Table.read(path+'datatab0.fits')
 for i in range(1,10):
     z=vstack([z,Table.read(path+'datatab'+str(i)+'.fits')])
