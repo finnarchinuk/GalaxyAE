@@ -37,25 +37,28 @@ def get_samples(num_samples,seed=0,folder=path):
     else: info=vstack([info,my_info[dumb_mask]])
   return spec,info
   
-def train_test_split():
+def train_test_split(spectra,data):
     #saves normalized spectra into training and test sets
     import os
     from sklearn import preprocessing
     from sklearn import model_selection as md
-    X = a #spectra
-    Y = b #parameters
+    np.random.seed(0)
+    X = spectra
+    Y = data
 
     #Standardize each ROW (normalization is within spectra, scaler doesn't give information.)
     scaler = preprocessing.StandardScaler().fit(X.T)
     scaled_data= scaler.transform(X.T)
 
-    np.random.seed(0)
+    # To keep the parameters with the correct spectra, we're splitting a single column of the parameters ('SplitID')
+    # then using "Y.loc" to recover the corresponding row. (Astropy has issues splitting a Table).
     Y['SplitID']=np.arange(len(Y))
     Y.add_index('SplitID')
     Xt,Xv,Yt,Yv = md.train_test_split(scaled_data.T,Y['SplitID'],test_size=0.1)
     #
     y_train=Y.loc[Yt]
     y_test= Y.loc[Yv]
+    
     print('X_train,X_test shapes:',Xt.shape,Xv.shape)
     np.save(TRAIN_SPEC_PATH,Xt)
     y_train.write(TRAIN_DATA_PATH+'.fits',format='fits')
@@ -66,9 +69,8 @@ def train_test_split():
 # --------
 # SELECT SPECTRA, SAVE IT
 # --------
-a,b=get_samples(NUM_SPECTRA) # "b" is the associated dataset.
-
-train_test_split()
+a,b=get_samples(NUM_SPECTRA) # 'a' are spectra, 'b' are the corresponding parameters.
+train_test_split(spectra=a,data=b)
 
 
 # ----------------
@@ -76,15 +78,16 @@ train_test_split()
 # This is an array of the MaNGA suffixes which will later be used for looping through galaxies separately.
 # ---------------
 
-z=Table.read(path+'datatab0.fits')
+# ------- Load Full Datatab --------
+full_datatab=Table.read(path+'datatab0.fits')
 for i in range(1,10):
-    z=vstack([z,Table.read(path+'datatab'+str(i)+'.fits')])
-y=np.unique(z['mangaID'])
+    full_datatab=vstack([full_datatab,Table.read(path+'datatab'+str(i)+'.fits')])
+unique_galaxies=np.unique(full_datatab['mangaID'])
 
-y2=np.zeros(4609) #there are 4609 galaxies.
-for i in range(4609):
-    y2[i]=y[i].split('-')[1] #removes the prefix and dash
-y2.sort()
+unique_suffixes=np.zeros(len(unique_galaxies)) #there are 4609 galaxies.
+for i in range(len(unique_suffixes)):
+    unique_suffixes[i]=unique_galaxies[i].split('-')[1] #removes the prefix and dash
+unique_suffixes.sort()
 
-np.save('gal_unique_indexes.npy',y2)
+np.save('gal_unique_indexes.npy',unique_suffixes)
 print('saved gal_unique_indexes.npy')
