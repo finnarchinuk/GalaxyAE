@@ -129,3 +129,4 @@ plt.ylabel('number of nodes')
 plt.hist(heightmap,bins=20)
 plt.title('heightmap 20k node distribution')
 plt.savefig('results/tmp/'+my_save_path+'/heightmap_distribution.png')
+
