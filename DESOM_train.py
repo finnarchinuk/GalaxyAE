@@ -14,24 +14,20 @@ import matplotlib.pyplot as plt
 from keras import optimizers
 from astropy.table import Table
 
-#------------------------------------------------ Path names----------------
-root = os.getcwd()
-
-#------------------------------------------------------Pipeline---------------------------------
+#----------------------Arguments----------------------
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--map_size', nargs='+', default=[8, 8], type=int)
-parser.add_argument('--train_size', default= 100000, type=int) #Only for IM
-parser.add_argument('--gamma', default=0.001, type=float, help='coefficient of self-organizing map loss')
-parser.add_argument('--iterations', default=10000, type=int)
+parser.add_argument('--map_size', nargs='+', default=[15, 15], type=int)
+parser.add_argument('--gamma', default=1e-4, type=float, help='coefficient of self-organizing map loss')
+parser.add_argument('--iterations', default=125000, type=int)
 parser.add_argument('--som_iterations', default=10000, type=int)
-parser.add_argument('--model_batch_size', default=256, type=int)
-parser.add_argument('--Tmax', default=10.0, type=float)
-parser.add_argument('--Tmin', default=0.1, type=float)
+parser.add_argument('--model_batch_size', default=16, type=int)
+parser.add_argument('--Tmax', default=15.0, type=float)
+parser.add_argument('--Tmin', default=2.0, type=float)
 parser.add_argument('--save_path',type=str)
-parser.add_argument('--lr',type=float)
-parser.add_argument('--latent',type=int)
-parser.add_argument('--seed',type=int)
+parser.add_argument('--lr', default=1e-3, type=float)
+parser.add_argument('--latent', default=256, type=int)
+parser.add_argument('--seed', default=0, type=int)
 
 #Obtain args
 args = parser.parse_args()
@@ -49,6 +45,7 @@ print('latent:',args.latent)
 print('seed: ',args.seed)
 my_save_path=args.save_path
 
+#------------------------------------------------ Path names----------------
 X_train_path='X_train400k.npy'
 X_test_path ='X_test400k.npy'
 Y_test_path ='Y_test400k.fits'
@@ -60,7 +57,7 @@ input_dims=X_train.shape[1]
 print('Train size:',X_train.shape)
 print('Train size reduced to:',X_train.shape)
 np.random.seed(args.seed)
-np.random.shuffle(X_train) #necessary?
+np.random.shuffle(X_train) # an extra shuffle before training.
 
 #-------------------------------------------- Architecture  and Fit -----------------------------------------------   
 #Define, Initialize and Compile DESOM
@@ -99,15 +96,7 @@ def get_distance_map(desom, X):
 
 #DISTRIBUTION INTO NODES
 # Bin each spectrum into the best node
-best_node=np.zeros((Xmin.shape[0]))
-dist_map = get_distance_map(som, Xmin)
-for i in range(Xmin.shape[0]): #for each spectrum
-    temp_dist_map=dist_map[i].flatten() # map_size[0]*map_size[1]
-    temp_min=temp_dist_map.min() # closest node
-    best_node[i]=np.where(temp_dist_map == temp_min)[0] # bin closest node.
-
-#Append best_node index to Ymin
-Ymin['bmu']=best_node
+Ymin['bmu']=som.predict(Xmin)
 
 # Mask each node
 attr_av=np.zeros(map_size[0]*map_size[1])
