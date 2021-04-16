@@ -72,48 +72,44 @@ for quick_latent in LATENTS:
     ae,r=som.model.predict(X_test)
     r=np.argmin(r,axis=1)
     
-    
-''' Things get dicey below (due to logging changes)'''
+    #-------------------------------- Save LR plot -------------------------
+    training_history=np.genfromtxt('results/som2_testing/{}/desom2_log_{}.csv'.format(args.save_path,quick_latent),
+                                   delimiter=',')
 
     # Save LR plots
     fig,ax=plt.subplots(2,1,sharex=True)
-    ax[0].semilogy(Lossr)
-    ax[1].semilogy(Losssom)
-    ax[1].set_xlabel('epochs (more or less)')
+    ax[0].semilogy(training_history[3]) #LR for AE
+    ax[1].semilogy(training_history[4]) #LR for SOM 
+    ax[1].set_xlabel('Epochs (more or less)')
     plt.savefig('results/som2_testing/{}/z{}_LR.png'.format(args.save_path,quick_latent))
     plt.clf()
-
-    # Log AutoEncoder Reconstruction error for Test set and Training set
-    print('MSE (test set) {}. latent: {}'.format(
-        mean_squared_error(X_test.reshape(-1,225),ae.reshape(-1,225)),
-        quick_latent))
     
-    # Remove?: Won't work if logging properly.
-    # print('MSE (train set):{}'.format(Lossr[-1]))
-    
-    # Reconstruction example
+    #----------------------- Save a Reconstruction example --------------------
     plt.figure()
-    plt.plot(X_test[0].reshape(225),label='input')
-    plt.plot(ae[0].reshape(225),label='recon')
+    plt.plot(X_test[0].reshape(X_data.shape[1]),label='input')
+    plt.plot(ae[0].reshape(X_data.shape[1]),label='recon')
     plt.title('Model Reconstruction')
     plt.legend()
-    plt.savefig('results/som2_testing/{}/z{}_reconstruction_example.png'.format(args.save_path,quick_latent)
+    plt.savefig('results/som2_testing/{}/z{}_reconstruction_example.png'.format(args.save_path,quick_latent))
     plt.clf()
     
-    
+    #--------------------------- Calculate (and log) MSE for training and test sets from AE --------------------------
+    z = mean_squared_error(X_test.reshape(-1,X_data.shape[1]),ae.reshape(-1,X_data.shape[1]))
+    l_test_results.append(z)
+    l_train_results.append(training_history[3][-1])
 
-    l_train_results.append(Lossr[-1])
-    l_test_results.append(mean_squared_error(X_test.reshape(-1,225),ae.reshape(-1,225)))
+    # Log
+    print('MSE (test set) {}. latent: {}'.format(z,quick_latent))
+    print('MSE (train set):{}'.format(training_history[3][-1]))
 
-
-
+#------------------------------------ Plot Final Curve -------------------------------
 plt.figure()
 plt.plot(LATENTS,l_test_results,label='test set')
 plt.plot(LATENTS,l_train_results,label='train set')
-plt.xlabel('latent widths')
-plt.ylabel('mse')
+plt.xlabel('Latent Widths')
+plt.ylabel('MSE')
 plt.legend()
-plt.savefig('results/som2_testing/'+args.save_path+'/variable_latents.png')
+plt.savefig('results/som2_testing/{}/variable_latents.png'.format(args.save_path))
 plt.clf()
 
 som.model.summary()
