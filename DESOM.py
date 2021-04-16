@@ -1,7 +1,6 @@
-# This is largely a copy from Forest. I removed parts that weren't relevant to this particular
+# This is largely the same as from Forest. I removed parts that weren't relevant to this particular
 # problem and merged some functions from another file here for simplicity.
 
-import os
 import csv
 from time import time
 import numpy as np
