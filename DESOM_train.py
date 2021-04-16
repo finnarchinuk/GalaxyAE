@@ -19,14 +19,14 @@ from sklearn.metrics import mean_squared_error
 parser = argparse.ArgumentParser()
 
 parser.add_argument('--map_size', nargs='+', default=[15, 15], type=int)
-parser.add_argument('--gamma', default=1e-4, type=float, help='coefficient of self-organizing map loss')
+parser.add_argument('--gamma', default=5e-4, type=float, help='coefficient of self-organizing map loss')
 parser.add_argument('--iterations', default=125000, type=int)
 parser.add_argument('--som_iterations', default=100000, type=int)
 parser.add_argument('--batch_size', default=32, type=int)
 parser.add_argument('--Tmax', default=15.0, type=float)
-parser.add_argument('--Tmin', default=2.0, type=float)
+parser.add_argument('--Tmin', default=0.7, type=float)
 parser.add_argument('--save_path',type=str)
-parser.add_argument('--lr', default=1e-3, type=float)
+parser.add_argument('--lr', default=5e-5, type=float)
 parser.add_argument('--latent', default=256, type=int)
 parser.add_argument('--seed', default=1, type=int)
 
