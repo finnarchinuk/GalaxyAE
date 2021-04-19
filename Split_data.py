@@ -99,7 +99,7 @@ def get_samples(num_samples,load_folder,seed=0):
   return spec,info
 
 # --------------------- Define how to split data into training and testing sets ------------------
-def train_test_split(spectra,data,test_ratio=0.1):
+def train_test_split(spectra, data, test_ratio=0.1):
     ''' Splits data into training and testing sets '''
     np.random.seed(0)
     X = spectra
@@ -127,32 +127,31 @@ def train_test_split(spectra,data,test_ratio=0.1):
 
 #------------------- Call these functions -----------------
 # calculate outlier threshold
-max_threshold_mask, min_threshold_mask = flux_outliers(original_data_path,outlier=0.5)
+max_threshold_mask, min_threshold_mask = flux_outliers(original_data_path, outlier=0.5)
 
 # remove spectra from consideration, resave them by chunk
 apply_mask(original_data_path, new_data_path)
 
-# randomly select samples for training and testing sets.
-a,b=get_samples(NUM_SPECTRA,new_data_path)
+# randomly select spectral samples (first output), and corresponding information (second output)
+quick_spec, quick_data = get_samples(NUM_SPECTRA, new_data_path)
 
-# split those into train and test sets (while keeping the astropy table uses paths from top of this file.
-train_test_split(spectra=a,data=b,test_ratio=0.1)
+# split into train and test sets (while keeping the astropy table uses paths from top of this file)
+train_test_split(quick_spec, quick_data, test_ratio=0.1)
 
 
-# ----------------
-# Generate gal_unique_indexes.npy
+#--------------------- Generate list of galaxy indexes ---------------------
 # This is an array of the MaNGA suffixes which will later be used for looping through galaxies separately.
-# ---------------
 
-# ------- Load Full Datatab --------
+# Load Full Datatab
 full_datatab=Table.read(path+'datatab0.fits')
 for i in range(1,10):
     full_datatab=vstack([full_datatab,Table.read(path+'datatab'+str(i)+'.fits')])
 unique_galaxies=np.unique(full_datatab['mangaID'])
 
-unique_suffixes=np.zeros(len(unique_galaxies)) #there are 4609 galaxies.
-for i in range(len(unique_suffixes)):
-    unique_suffixes[i]=unique_galaxies[i].split('-')[1] #removes the prefix and dash
+# 
+unique_suffixes=np.zeros_like(unique_galaxies) #there are 4609 galaxies.
+for i, galaxy_index in enumerate(unique_galaxies):
+    unique_suffixes[i]=galaxy_index.split('-')[1] #removes the prefix and dash
 unique_suffixes.sort() #the order doesn't actually matter here.
 
 np.save('gal_unique_indexes.npy',unique_suffixes)
