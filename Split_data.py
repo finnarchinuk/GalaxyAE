@@ -1,158 +1,228 @@
-##### Select a subset of spectra for training and testing.
+'''
+two parts:
+   1) apply filtering
+   2) split data into train and test sets
 
+   (this doesn't try to manage memory footprint at all)
+
+# rewrote final lines, used 156GB. (85% of 190GB available)
+# takes about 30 minutes
+'''
+
+print('\n\n running select_spectra_refactored')
 import numpy as np
-from astropy.io import fits
-from astropy.table import Table, vstack
-import os
-from sklearn import preprocessing
-from sklearn import model_selection as md
+from astropy.table import Table, vstack, Column
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
 
-NUM_SPECTRA = 1_000_000
-SPEC_SIZE = 4544                 # number of data points for each spectrum
+SAVE_PATH = 'data/refactored/'
+# this directory has spectra and waves saved as astropy tables.
 
-# where the original uncleaned data exists as 10 files, each with 117100 spectra and
-# corresponding wavelengths and data. (spec0.npy, data0.fits, wave0.npy)
-original_data_path='/project/MANGA/dr15/MLdata/'
-
-#-------------------------- Define where to save the data ------------------
-new_data_path='/my_favourite_data_path/MLdata/'
-TRAIN_SPEC_PATH = 'X_train_1m'
-TEST_SPEC_PATH =  'X_test1_m'
-
-TRAIN_DATA_PATH = 'Y_train_1m'
-TEST_DATA_PATH =  'Y_test_1m'
-
-#----------------------- Calculate and apply masking -------------------------
-# Load all spectra, find top and bottom flux outliers (top and bottom 0.5%, this may be on the low end).
-# If spectra have any values above the max or below the min, we don't include them in train or test data.
-def flux_outlier(load_path,outlier=0.5)
-  ''' Calculates the top and bottom {outlier} percentile of the flux to be masked off'''
-  x_maxes = np.zeros(0)
-  x_mins = np.zeros(0)
+'''
+PART 0: put spectra into a table: [fname,mangaID,raw]
+        do the same with wavelengths .
+'''
+def label_raws():
+  ''' load each chunk. (1 million spectra were divided into 10 chunks)
+      put a quick label on each spectra and wave and reduce to float32
+      '''
   for i in range(10):
-    temp_spec = np.load('data/outlier_removed_perc2/spec{}.npy'.format(i))
-    x_maxes = np.append(x_maxes,temp_spec.max(axis=1))
-    x_mins = np.append(x_mins,temp_spec.min(axis=1))
-  return np.percentile(x_maxes,100-outlier), np.percentile(x_mins,outlier)
+    data = Table.read(LOAD_PATH + 'datatab'+str(i)+'.fits')
+    spec = np.load(LOAD_PATH + 'spec'+str(i)+'.npy')
+    new_table_spec = Table([data['fname'],data['mangaID'],np.float32(spec)],
+                      names=('fname','mangaID','raw'))
+    new_table_spec.write(SAVE_PATH + 'spec'+str(i)+'.fits')
 
-# More traditional masking, based on values in the spectral data information (eg, data0.fits).
-def apply_mask(load_folder,save_folder):
-  for i in range(10):                      # 10 datasets
-    # load each block
-    temp_spec=np.load(load_folder+'spec'+str(i)+'.npy')
-    my_info=Table.read(load_folder+'datatab'+str(i)+'.fits')
-    
-    # defined masks, these are explained further in the paper.
-    ngp_mask = (my_info['ngoodpixels'] > 3700)
-    signal_mask = (my_info['signal'] < 3)
-    chi2_mask = (my_info['chi2'] < 50)
-    meansn2_mask = (my_info['meansn2'] > 5)
+    wave = np.load(LOAD_PATH + 'wave'+str(i)+'.npy')
+    new_table_wave = Table([data['fname'],data['mangaID'],np.float32(wave)],
+                      names=('fname','mangaID','wave'))
+    new_table_wave.write(SAVE_PATH + 'wave'+str(i)+'.fits')
 
-    # extract maxes of each spectrum
-    spec_maxes = temp_spec.max(axis=1)
-    max_mask=(spec_maxes < max_threshold_mask)
-    # extract mins
-    spec_mins = temp_spec.min(axis=1)
-    min_mask=(spec_mins > min_threshold_mask)
+LOAD_PATH = '/project/RAW_DATA_PATH/'
+label_raws()
+# ONLY NEEEDED TO RUN ONCE
 
-    # put all the masks together
-    total_mask = ngp_mask * signal_mask * chi2_mask * meansn2_mask * max_mask * min_mask
-    # print how much each mask removed (there will be overlap)
-    print('ngp_mask:',temp_spec.shape[0]-ngp_mask.sum())
-    print('signal_mask:',temp_spec.shape[0]-signal_mask.sum())
-    print('chi2_mask:',temp_spec.shape[0]-chi2_mask.sum())
-    print('meansn2_mask:',temp_spec.shape[0]-meansn2_mask.sum())
-    print('max_mask:',temp_spec.shape[0]-max_mask.sum())
-    print('min_mask:',temp_spec.shape[0]-min_mask.sum())
 
-    print('chunk '+str(i)+' masked. '+str(total_mask.sum())+' remain. ('+str(total_mask.sum()/total_mask.shape[0])+').')
 
-    # save these cleaned data.
-    np.save(save_folder+'spec'+str(i)+'.npy',temp_spec[total_mask])
-    my_info[total_mask].write(save_folder+'datatab'+str(i)+'.fits',format='fits')
+''' PART 1: LOAD FILES, APPLY MASKING'''
 
-#------------------------- Define how to select spectra randomly from original data ------------------
-def get_samples(num_samples,load_folder,seed=0):
-  ''' Take spectral samples from each data chunk.
-  Return: spectra (as numpy array), and data (as astropy table).
+def load_and_merge_spec():
+  ''' load each chunk
+      returns spectra'''
+  spec_table = Table.read(SAVE_PATH+'spec0.fits')
+  for i in range(1,10):
+    temp_spec_table = Table.read(SAVE_PATH+'spec'+str(i)+'.fits')
+    spec_table = vstack([spec_table,temp_spec_table])
+  return spec_table
+
+def load_and_merge_wave():
+  ''' load each chunk
+      returns wave'''
+  wave_table = Table.read(SAVE_PATH+'wave0.fits')
+  for i in range(1,10):
+    temp_wave_table = Table.read(SAVE_PATH+'wave'+str(i)+'.fits')
+    wave_table = vstack([wave_table,temp_wave_table])
+  return wave_table
+
+def load_and_merge_data():
+    ''' load each chunk
+        returns data'''
+  data = Table.read(LOAD_PATH+'datatab0.fits')
+  for i in range(1,10):
+    temp_data = Table.read(LOAD_PATH+'datatab'+str(i)+'.fits')
+    data=vstack([data,temp_data])
+  return data
+
+def mask_extremes(spec_table, data, percentile_limit=0.5):
+  ''' adds a column to data table, ['flux outlier'].
+      if the spectrum has a peak outside the top or bottom 0.5
+      percentile it is considered an outlier
+      returns data with added column
   '''
-  np.random.seed(seed)
-  samples_per_set=int(np.floor(num_samples/10.))
-  spec=np.zeros((samples_per_set*10,SPEC_SIZE))
-  
-  for i in range(10):                      # 10 files contain the data.
-    temp_spec=np.load(load_folder+'spec'+str(i)+'.npy')
-    my_info=Table.read(load_folder+'datatab'+str(i)+'.fits')
-    
-    # Randomly select spectra
-    ind_random = np.random.choice(np.arange(temp_spec.shape[0]),samples_per_set,replace=False)
+  x_mins = spec_table['raw'].min(axis=1)
+  min_threshold = np.percentile(x_mins,percentile_limit)
+  print('min threshold',np.percentile(x_mins,percentile_limit))
+  min_mask = (x_mins > min_threshold)
 
-    # (taking that randomly selected slice from an astropy table is more complicated)
-    dumb_mask=np.zeros(temp_spec.shape[0],dtype='bool')
-    for k in range(samples_per_set):
-        dumb_mask[ind_random[k]]=True
+  x_maxes = spec_table['raw'].max(axis=1)
+  max_threshold = np.percentile(x_maxes,100-percentile_limit)
+  print('max threshold',np.percentile(x_maxes,100-percentile_limit))
+  max_mask = (x_maxes < max_threshold)
 
-    # Stack samples into a single variable
-    spec[samples_per_set*i:samples_per_set*i+samples_per_set]=temp_spec[dumb_mask]
-    if i==0: info=my_info[dumb_mask]
-    else: info=vstack([info,my_info[dumb_mask]])
-  return spec,info
-
-# --------------------- Define how to split data into training and testing sets ------------------
-def train_test_split(spectra, data, test_ratio=0.1):
-    ''' Splits data into training and testing sets '''
-    np.random.seed(0)
-    X = spectra
-    Y = data
-
-    #Standardize each ROW (normalization is within spectra, therefore the scaler doesn't cause information leakage.)
-    scaler = preprocessing.StandardScaler().fit(X.T)
-    scaled_data= scaler.transform(X.T)
-
-    # To keep the parameters with the correct spectra, we're splitting a single column of the parameters ('SplitID')
-    # then using "Y.loc" to recover the corresponding row. (Astropy has issues splitting a Table).
-    Y['SplitID']=np.arange(len(Y))
-    Y.add_index('SplitID')
-    Xt,Xv,Yt,Yv = md.train_test_split(scaled_data.T,Y['SplitID'],test_size=test_ratio)
-    #
-    y_train=Y.loc[Yt]
-    y_test= Y.loc[Yv]
-    
-    print('X_train,X_test shapes:',Xt.shape,Xv.shape)
-    np.save(TRAIN_SPEC_PATH,Xt)
-    y_train.write(TRAIN_DATA_PATH+'.fits',format='fits')
-    np.save(TEST_SPEC_PATH,Xv)
-    y_test.write(TEST_DATA_PATH+'.fits',format='fits')
-    print ('Done!')    
-
-#------------------- Call these functions -----------------
-# calculate outlier threshold
-max_threshold_mask, min_threshold_mask = flux_outliers(original_data_path, outlier=0.5)
-
-# remove spectra from consideration, resave them by chunk
-apply_mask(original_data_path, new_data_path)
-
-# randomly select spectral samples (first output), and corresponding information (second output)
-quick_spec, quick_data = get_samples(NUM_SPECTRA, new_data_path)
-
-# split into train and test sets (while keeping the astropy table uses paths from top of this file)
-train_test_split(quick_spec, quick_data, test_ratio=0.1)
+  total_mask = min_mask * max_mask
+  data['flux_outlier'] = (total_mask != True)
+  return data
 
 
-#--------------------- Generate list of galaxy indexes ---------------------
-# This is an array of the MaNGA suffixes which will later be used for looping through galaxies separately.
+my_spec = load_and_merge_spec() #returns a table of spectra
+my_wave = load_and_merge_wave() #returns a table of waves
 
-# Load Full Datatab
-full_datatab=Table.read(path+'datatab0.fits')
-for i in range(1,10):
-    full_datatab=vstack([full_datatab,Table.read(path+'datatab'+str(i)+'.fits')])
-unique_galaxies=np.unique(full_datatab['mangaID'])
+my_data = mask_extremes(my_spec,
+                        load_and_merge_data(),
+                        percentile_limit=0.5)
 
-# 
-unique_suffixes=np.zeros_like(unique_galaxies) #there are 4609 galaxies.
-for i, galaxy_index in enumerate(unique_galaxies):
-    unique_suffixes[i]=galaxy_index.split('-')[1] #removes the prefix and dash
-unique_suffixes.sort() #the order doesn't actually matter here.
 
-np.save('gal_unique_indexes.npy',unique_suffixes)
-print('saved gal_unique_indexes.npy')
+# clean up data with masking
+#-> 'criteria':[min val, max val]
+MASKS = {'ngoodpixels':[3900,None],
+         'signal':[None,3],
+         'chi2':[None,50],
+         'meansn2':[5,None],
+        }
+
+def select_by_param(data, param, internal_min=None, internal_max=None):
+  ''' 
+  generates a mask based on some parameter
+  returns that mask
+  '''
+  # TODO: how can I remove if/elses?
+  assert type(param) == str
+  if internal_min != None: min_mask = (data[param]>=internal_min)
+  else: min_mask = np.ones(len(data),dtype=bool)
+
+  if internal_max != None: max_mask = (data[param]<=internal_max)
+  else: max_mask = np.ones(len(data),dtype=bool)
+
+  total_mask = min_mask * max_mask
+  return total_mask
+
+def apply_masks(data, mask_dict):
+  '''
+  adds a column to the data table indicating whether to
+  mask off the spectrum from training and testing.
+  '''
+  total_mask = np.ones(len(data),dtype=bool)
+  for criteria in mask_dict.keys():
+    print(criteria,mask_dict[criteria])
+    temp_mask = select_by_param(data, criteria,
+                                internal_min=mask_dict[criteria][0], #min
+                                internal_max=mask_dict[criteria][1]) #max
+    print(criteria,'mask removes:',temp_mask.sum())
+    total_mask = total_mask * temp_mask
+    print(' total_mask:',total_mask.sum())
+    data['masked_out'] = (total_mask!=True)
+
+apply_masks(my_data, MASKS)
+
+
+
+
+''' PART 2'''
+''' PART 2a: remove problem spectra '''
+
+mask = (my_data['masked_out'] == False)
+outlier_mask = (my_data['flux_outlier'] == False)
+total_mask = mask * outlier_mask
+print('total_mask sum:',total_mask.sum())
+
+''' PART 2b: just split? '''
+
+TEST_SIZE = 300_000
+
+# apply a train flag
+
+
+def train_test_flags(data, outlier_mask):
+  '''
+  adds columns ['Train_set'] and ['Test_set'] to data table to divide up spectra
+  inputs: data table, mask removing low quality spectra (based on above criteria)
+  '''
+  test_column = Column(np.zeros(len(data),dtype=bool), name='Test_set')
+  coinflip = np.zeros(len(data[outlier_mask]),dtype=bool)
+  coinflip[:TEST_SIZE] = True
+  np.random.seed(0)
+  np.random.shuffle(coinflip)
+  test_column[outlier_mask] = coinflip
+
+  train_column = Column(np.zeros(len(data),dtype=bool), name='Train_set')
+  inv_coinflip = (coinflip != True)
+  train_column[outlier_mask] = inv_coinflip
+
+  data.add_column(train_column)
+  data.add_column(test_column)
+  return data #don't know if this is required
+
+
+mask = (my_data['masked_out'] == False)
+outlier_mask = (my_data['flux_outlier'] == False)
+total_mask = mask * outlier_mask
+
+my_data = train_test_flags(my_data, total_mask)
+
+
+'''
+Part 2b: Save Training/Test sets.
+(Unused are the spectra that have been removed from both of these sets).
+'''
+suffix = 'june11b'
+
+TRAIN_SPEC_PATH = 'x_train1m_'+suffix
+TRAIN_DATA_PATH = 'y_train1m_'+suffix
+TRAIN_WAVE_PATH = 'w_train1m_'+suffix
+
+UNUSED_SPEC_PATH = 'x_unused1m_'+suffix
+UNUSED_DATA_PATH = 'y_unused1m_'+suffix
+UNUSED_WAVE_PATH = 'w_unused1m_'+suffix
+
+TEST_SPEC_PATH = 'x_test1m_'+suffix
+TEST_DATA_PATH = 'y_test1m_'+suffix
+TEST_WAVE_PATH = 'w_test1m_'+suffix
+
+
+# save train set
+train_mask = (my_data['Train_set'] == True)
+my_data[train_mask].write(TRAIN_DATA_PATH+'.fits') #save the data
+my_spec[train_mask].write(TRAIN_SPEC_PATH+'.fits') #save the spec_table
+my_wave[train_mask].write(TRAIN_WAVE_PATH+'.fits') #save the wave
+
+# save test set
+test_mask = (my_data['Test_set'] == True)
+my_data[test_mask].write(TEST_DATA_PATH+'.fits')
+my_spec[test_mask].write(TEST_SPEC_PATH+'.fits')
+my_wave[test_mask].write(TEST_WAVE_PATH+'.fits')
+
+# save unused set
+unused_mask = (total_mask != True)
+my_data[unused_mask].write(UNUSED_DATA_PATH+'.fits')
+my_spec[unused_mask].write(UNUSED_SPEC_PATH+'.fits')
+my_wave[unused_mask].write(UNUSED_WAVE_PATH+'.fits')
