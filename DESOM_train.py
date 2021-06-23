@@ -92,7 +92,6 @@ som.init_som_weights(x_train['raw'])
 som.fit(x_train['raw'],
         iterations = args.iterations,
         som_iterations = args.som_iterations,
-        eval_interval=100,
         batch_size= args.batch_size,
         Tmax= args.Tmax,
         Tmin= args.Tmin,
