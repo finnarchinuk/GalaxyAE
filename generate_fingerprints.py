@@ -40,7 +40,7 @@ test_fp = np.zeros((len(unique_ids), MAP_SIZE))
 unused_fp = np.zeros((len(unique_ids), MAP_SIZE))
 
 # generate FPs for each galaxy
-# (it's not important to keep train/test/unused spectra separate, just more because I can)
+# (it's not really important to keep train/test/unused fingerprints separate)
 for gal_idx, gal_id in enumerate(unique_ids):
   mask_train = (my_train['mangaID'] == gal_id)
   mask_test = (my_test['mangaID'] == gal_id)
