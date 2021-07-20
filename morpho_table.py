@@ -1,8 +1,8 @@
 '''
-This is a small script that pulls galaxy morphology from a value added catalogue
+VALUE ADDED CATALOGUE FROM: Vazquez-Mata and Hernandez-Toledo
 https://www.sdss.org/dr16/data_access/value-added-catalogs/?vac_id=manga-visual-morphologies-from-sdss-and-desi-images
 
-This saves a table with three columns: ['mangaID','type','suffix']
+This is a small script that pulls galaxy information from a value added catalogue.
 This table ends up having 4696 galaxies, though some are blanks.
 '''
 
@@ -10,26 +10,24 @@ from astropy.io import fits
 from astropy.table import Table, Column
 import numpy as np
 
+# Load data
 file_path = 'SOME_PATH/manga_visual_morpho-1.0.1.fits'
 catalogue = fits.open(file_path)
+vac_data = catalogue[1].data
 
 
-# generate simple table
-simple_table = Table([catalogue[1].data.field('MANGAID'),
-                     catalogue[1].data.field('Type')],
-                     names = ('mangaID','type'))
+# Create simplified table
+column_names = ['mangaID', 'Type', 'edge_on', 'tidal', 'Conc', 'Conc_err', 'Asym', 'Asym_err', 'Clump', 'Clump_err']
+vac_table = Table(names = column_names,
+                  data = [vac_data.field('MANGAID'),
+                          vac_data.field('Type'),
+                          vac_data.field('edge_on'),
+                          vac_data.field('tidal'),
+                          vac_data.field('C'),
+                          vac_data.field('E_C'),
+                          vac_data.field('A'),
+                          vac_data.field('E_A'),
+                          vac_data.field('S'),
+                          vac_data.field('E_S')])
 
-
-# extract suffix from identifier
-zoo_gal_suffixes = np.zeros(len(simple_table),dtype=int)
-for i in range(len(simple_table)):
-    try:
-        zoo_gal_suffixes[i] = int(simple_table['mangaID'][i].split('-')[1])
-    except:
-        pass
-
-temp_column = Column(name='suffix',data=(zoo_gal_suffixes))
-simple_table.add_column(temp_column)
-
-# save it.
-simple_table.write('gal_morph.fits')
+vac_table.write('full vac.fits')
