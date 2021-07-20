@@ -15,8 +15,9 @@ from astropy.table import Table, vstack, Column
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 
-SAVE_PATH = 'data/refactored/'
-# this directory has spectra and waves saved as astropy tables.
+LOAD_PATH = '/project/RAW_DATA_PATH/' # the far away original path.
+SAVE_PATH = 'data/' # a closer path for spectra and waves saved as astropy tables.
+
 
 '''
 PART 0: put spectra into a table: [fname,mangaID,raw]
@@ -38,9 +39,7 @@ def label_raws():
                       names=('fname','mangaID','wave'))
     new_table_wave.write(SAVE_PATH + 'wave'+str(i)+'.fits')
 
-LOAD_PATH = '/project/RAW_DATA_PATH/'
 label_raws()
-# ONLY NEEEDED TO RUN ONCE
 
 
 
@@ -104,10 +103,10 @@ my_data = mask_extremes(my_spec,
 
 # clean up data with masking
 #-> 'criteria':[min val, max val]
-MASKS = {'ngoodpixels':[3900,None],
-         'signal':[None,3],
-         'chi2':[None,50],
-         'meansn2':[5,None],
+MASKS = {'ngoodpixels': [3900, None],
+         'signal': [None, 3],
+         'chi2': [None, 50],
+         'meansn2': [5, None],
         }
 
 def select_by_param(data, param, internal_min=None, internal_max=None):
@@ -115,13 +114,12 @@ def select_by_param(data, param, internal_min=None, internal_max=None):
   generates a mask based on some parameter
   returns that mask
   '''
-  # TODO: how can I remove if/elses?
   assert type(param) == str
-  if internal_min != None: min_mask = (data[param]>=internal_min)
-  else: min_mask = np.ones(len(data),dtype=bool)
+  if internal_min != None: min_mask = (data[param] >= internal_min)
+  else: min_mask = np.ones(len(data), dtype=bool)
 
-  if internal_max != None: max_mask = (data[param]<=internal_max)
-  else: max_mask = np.ones(len(data),dtype=bool)
+  if internal_max != None: max_mask = (data[param] <= internal_max)
+  else: max_mask = np.ones(len(data), dtype=bool)
 
   total_mask = min_mask * max_mask
   return total_mask
@@ -131,16 +129,16 @@ def apply_masks(data, mask_dict):
   adds a column to the data table indicating whether to
   mask off the spectrum from training and testing.
   '''
-  total_mask = np.ones(len(data),dtype=bool)
+  total_mask = np.ones(len(data), dtype=bool)
   for criteria in mask_dict.keys():
     print(criteria,mask_dict[criteria])
     temp_mask = select_by_param(data, criteria,
                                 internal_min=mask_dict[criteria][0], #min
                                 internal_max=mask_dict[criteria][1]) #max
-    print(criteria,'mask removes:',temp_mask.sum())
+    print(criteria, 'mask removes:', temp_mask.sum())
     total_mask = total_mask * temp_mask
-    print(' total_mask:',total_mask.sum())
-    data['masked_out'] = (total_mask!=True)
+    print(' total_mask:', total_mask.sum())
+    data['masked_out'] = (total_mask != True)
 
 apply_masks(my_data, MASKS)
 
@@ -153,14 +151,11 @@ apply_masks(my_data, MASKS)
 mask = (my_data['masked_out'] == False)
 outlier_mask = (my_data['flux_outlier'] == False)
 total_mask = mask * outlier_mask
-print('total_mask sum:',total_mask.sum())
+print('total_mask sum:', total_mask.sum())
 
-''' PART 2b: just split? '''
+''' PART 2b: apply train/test flags '''
 
 TEST_SIZE = 300_000
-
-# apply a train flag
-
 
 def train_test_flags(data, outlier_mask):
   '''
@@ -168,19 +163,19 @@ def train_test_flags(data, outlier_mask):
   inputs: data table, mask removing low quality spectra (based on above criteria)
   '''
   test_column = Column(np.zeros(len(data),dtype=bool), name='Test_set')
-  coinflip = np.zeros(len(data[outlier_mask]),dtype=bool)
+  coinflip = np.zeros(len(data[outlier_mask]), dtype=bool)
   coinflip[:TEST_SIZE] = True
   np.random.seed(0)
   np.random.shuffle(coinflip)
   test_column[outlier_mask] = coinflip
 
-  train_column = Column(np.zeros(len(data),dtype=bool), name='Train_set')
+  train_column = Column(np.zeros(len(data), dtype=bool), name='Train_set')
   inv_coinflip = (coinflip != True)
   train_column[outlier_mask] = inv_coinflip
 
   data.add_column(train_column)
   data.add_column(test_column)
-  return data #don't know if this is required
+  return data
 
 
 mask = (my_data['masked_out'] == False)
@@ -196,33 +191,24 @@ Part 2b: Save Training/Test sets.
 '''
 suffix = 'june11b'
 
-TRAIN_SPEC_PATH = 'x_train1m_'+suffix
-TRAIN_DATA_PATH = 'y_train1m_'+suffix
-TRAIN_WAVE_PATH = 'w_train1m_'+suffix
-
-UNUSED_SPEC_PATH = 'x_unused1m_'+suffix
-UNUSED_DATA_PATH = 'y_unused1m_'+suffix
-UNUSED_WAVE_PATH = 'w_unused1m_'+suffix
-
-TEST_SPEC_PATH = 'x_test1m_'+suffix
-TEST_DATA_PATH = 'y_test1m_'+suffix
-TEST_WAVE_PATH = 'w_test1m_'+suffix
-
+UNUSED_SPEC_PATH = 
+UNUSED_DATA_PATH = 
+UNUSED_WAVE_PATH = 
 
 # save train set
 train_mask = (my_data['Train_set'] == True)
-my_data[train_mask].write(TRAIN_DATA_PATH+'.fits') #save the data
-my_spec[train_mask].write(TRAIN_SPEC_PATH+'.fits') #save the spec_table
-my_wave[train_mask].write(TRAIN_WAVE_PATH+'.fits') #save the wave
+my_spec[train_mask].write('x_train1m_' + suffix + '.fits') #save the spec_table
+my_data[train_mask].write('y_train1m_' + suffix + '.fits') #save the data
+my_wave[train_mask].write('w_train1m_' + suffix + '.fits') #save the wave
 
 # save test set
 test_mask = (my_data['Test_set'] == True)
-my_data[test_mask].write(TEST_DATA_PATH+'.fits')
-my_spec[test_mask].write(TEST_SPEC_PATH+'.fits')
-my_wave[test_mask].write(TEST_WAVE_PATH+'.fits')
+my_spec[test_mask].write('x_test1m_' + suffix + '.fits')
+my_data[test_mask].write('y_test1m_' + suffix + '.fits')
+my_wave[test_mask].write('w_test1m_' + suffix + '.fits')
 
 # save unused set
 unused_mask = (total_mask != True)
-my_data[unused_mask].write(UNUSED_DATA_PATH+'.fits')
-my_spec[unused_mask].write(UNUSED_SPEC_PATH+'.fits')
-my_wave[unused_mask].write(UNUSED_WAVE_PATH+'.fits')
+my_spec[unused_mask].write('x_unused1m_' + suffix + '.fits')
+my_data[unused_mask].write('y_unused1m_' + suffix + '.fits')
+my_wave[unused_mask].write('w_unused1m_' + suffix + '.fits')
