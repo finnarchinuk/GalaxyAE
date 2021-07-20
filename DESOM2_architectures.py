@@ -1,60 +1,60 @@
-
 from keras.layers import Input, Dense, Reshape, Flatten, Conv2D, LeakyReLU
 from keras.models import Model
 from keras import backend as K
 from SOM import SOMLayer
 import tensorflow as tf
+from keras.initializers import Identity, Zeros
 import numpy as np
+import csv
 
-# contains three functions: 
+# contains three functions:
 # cnn_1dae(input_dims,latent_dims)
 # both take (batch,15,15,1) as input (a 15x15 SOM with one channel)
 
 # And DESOM (the som2 version)
 
 
-def cnn_2dae(input_dims,latent_dims):
+
+def CNN_2DAE(input_dims, latent_dims):
     '''
     Inputs: input_dims expects to be (15,15,1)
-            latent_dims expects an integer: for example 200
+            latent_dims expects an integer: for example 128
     Returns: (Autoencoder, Encoder, Decoder)
     '''
     #------------------- Encoder--------------
     #Input layer
+    print('cnn final (16 filter) ')
     input_layer = Input(shape=(15,15,1), name='input')
-    x = Conv2D(32,(3,3),activation='relu',padding='same')(input_layer)
-    x = Conv2D(4,(3,3),activation='relu',padding='same')(x)
+    x = Conv2D(16,(3,3), activation='relu', padding='same')(input_layer)
 
     shape_before_flattening = K.int_shape(x)[1:]
-    dims,fmaps,other=shape_before_flattening
-    num_neurons=dims*fmaps*other
+    dims, fmaps, other = shape_before_flattening
+    num_neurons = dims * fmaps * other
     x = Flatten()(x)
-    x = Dense(latent_dims,name='z')(x)
+    x = Dense(latent_dims, name='z')(x)
 
     encoder = Model(input_layer, x, name='encoder') ########## ENCODER
 
-    decoded = Dense(num_neurons,activation='linear',name='decoder_4')(x)
-    decoded = Reshape((shape_before_flattening),name='decoder_3')(decoded)
-    decoded = Conv2D(4,(3,3),activation='relu',padding='same',name='decoder_2')(decoded)
-    decoded = Conv2D(32,(3,3),activation='relu',padding='same',name='decoder_1')(decoded)
-    decoded = Conv2D(1,(1,1),activation='linear',name='decoder_0')(decoded)
+    decoded = Dense(num_neurons, activation='linear', name='decoder_3')(x)
+    decoded = Reshape((shape_before_flattening), name='decoder_2')(decoded)
+    decoded = Conv2D(16,(3,3), activation='relu', padding='same', name='decoder_1')(decoded)
+    decoded = Conv2D(1,(1,1), activation='linear', name='decoder_0')(decoded)
 
     autoencoder = Model(input_layer, decoded, name='autoencoder') ######## AE
-    
+
     #stand alone decoder
     encoded_input = Input(shape=(latent_dims,))
-    decoded = autoencoder.get_layer('decoder_4')(encoded_input)
-    decoded = autoencoder.get_layer('decoder_3')(decoded)
+    decoded = autoencoder.get_layer('decoder_3')(encoded_input)
     decoded = autoencoder.get_layer('decoder_2')(decoded)
     decoded = autoencoder.get_layer('decoder_1')(decoded)
     decoded = autoencoder.get_layer('decoder_0')(decoded)
-    
+
     decoder = Model(inputs=encoded_input, outputs=decoded, name='decoder') ###### DECODER
     return (autoencoder, encoder, decoder)
 
 
 def som_loss(weights, distances):
-    return tf.reduce_mean(tf.reduce_sum(weights*distances, axis=1))
+    return tf.reduce_mean(tf.reduce_sum(weights * distances, axis=1))
 
 def kmeans_loss(y_pred, distances):
     return np.mean([distances[i, y_pred[i]] for i in range(len(y_pred))])
@@ -63,15 +63,16 @@ class DESOM:
     def __init__(self, input_dims, map_size, latent_dims):
         self.input_dims = input_dims
         self.map_size = map_size
-        self.n_prototypes = map_size[0]*map_size[1]
-        self.latent_dims=latent_dims
-
-    def initialize(self):
-        self.autoencoder, self.encoder, self.decoder = cnn_2dae(input_dims=self.input_dims,latent_dims=self.latent_dims)
+        self.n_prototypes = map_size[0] * map_size[1]
+        self.latent_dims = latent_dims
+        
+    def initialize(self,architecture=None):
+        self.autoencoder, self.encoder, self.decoder = CNN_2DAE(input_dims=self.input_dims, latent_dims=self.latent_dims)
         som_layer = SOMLayer(self.map_size, name='SOM')(self.encoder.output)
         # Create DESOM model
         self.model = Model(inputs=self.autoencoder.input,
                            outputs=[self.autoencoder.output, som_layer])
+        
     @property
     def prototypes(self):
         return self.model.get_layer(name='SOM').get_weights()[0]
@@ -110,15 +111,18 @@ class DESOM:
         return np.exp(-(x**2)/(T**2))
 
     def fit(self, X_train,
-            iterations=60000, som_iterations=55000,
-            eval_interval=100, save_epochs=5, batch_size=128,
-            Tmax=15, Tmin=0.1, decay='exponential', save_path='default_path'):
+            val_set,
+            iterations = 40000,
+            som_iterations = 35000,
+            batch_size=1024,
+            Tmax=15, Tmin=0.1,
+            save_path='results/desom2'):
 
-        logfile = open(save_dir + '/desom2_log_{}.csv'.format(self.latent_dims), 'w')
-        fieldnames = ['iter', 'T', 'L', 'Lr', 'Lsom', 'Lkm', 'Ltop']
+        logfile = open(save_path + '/desom2_log_{}.csv'.format(self.latent_dims), 'w')
+        fieldnames = ['iter', 'T', 'L', 'Lr', 'Lsom', 'Lkm', 'Ltop',
+                      'L_val', 'Lr_val', 'Lsom_val']
         logwriter = csv.DictWriter(logfile, fieldnames)
         logwriter.writeheader()
-      
         index = 0
         for ite in range(iterations):
             # Get training and validation batches
@@ -132,14 +136,13 @@ class DESOM:
             # Compute cluster assignments for batches
             _, d = self.model.predict(X_batch)
             y_pred = d.argmin(axis=1)
+            _, d_val = self.model.predict(val_set)
+            y_val_pred = d_val.argmin(axis=1)
 
             # Update temperature parameter
             if ite < som_iterations:
-                if decay == 'exponential':
-                    T = Tmax*(Tmin/Tmax)**(ite/(som_iterations-1))
-                elif decay == 'linear':
-                    T = Tmax - (Tmax-Tmin)*(ite/(som_iterations-1))
-
+                T = Tmax*(Tmin/Tmax)**(ite/(som_iterations-1))
+                
             # Compute topographic weights batches
             w_batch = self.neighborhood_function(self.map_dist(y_pred), T)
 
@@ -147,19 +150,22 @@ class DESOM:
             loss = self.model.train_on_batch(X_batch, [X_batch, w_batch])
 
             if ite % 50 == 0:
+                w_val_batch = self.neighborhood_function(self.map_dist(y_val_pred), T)
+                val_loss = self.model.test_on_batch(val_set, [val_set, w_val_batch])
                 # Initialize log dictionary
                 logdict = dict(iter=ite, T=T)
-                
-                # Get SOM weights and decode to original space
-                decoded_prototypes = self.decode(self.prototypes)
 
-''' TO DO: Test the fix below. '''
                 # Evaluate losses and metrics
                 logdict['L'] = loss[0]
                 logdict['Lr'] = loss[1]
                 logdict['Lsom'] = loss[2]
                 logdict['Lkm'] = kmeans_loss(y_pred, d)
                 logdict['Ltop'] = loss[2] - logdict['Lkm']
+
+                logdict['L_val'] = val_loss[0]
+                logdict['Lr_val'] = val_loss[1]
+                logdict['Lsom_val'] = val_loss[2]
                 logwriter.writerow(logdict)
+
         logfile.close()
         self.model.save_weights(save_path + 'DESOM_model_final_{}.h5'.format(self.latent_dims))
