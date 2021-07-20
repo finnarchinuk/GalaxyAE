@@ -7,13 +7,6 @@ from keras.initializers import Identity, Zeros
 import numpy as np
 import csv
 
-# contains three functions:
-# cnn_1dae(input_dims,latent_dims)
-# both take (batch,15,15,1) as input (a 15x15 SOM with one channel)
-
-# And DESOM (the som2 version)
-
-
 
 def CNN_2DAE(input_dims, latent_dims):
     '''
@@ -23,8 +16,8 @@ def CNN_2DAE(input_dims, latent_dims):
     '''
     #------------------- Encoder--------------
     #Input layer
-    print('cnn final (16 filter) ')
-    input_layer = Input(shape=(15,15,1), name='input')
+    print('cnn final (16 filters) ')
+    input_layer = Input(shape=(15, 15, 1), name='input')
     x = Conv2D(16,(3,3), activation='relu', padding='same')(input_layer)
 
     shape_before_flattening = K.int_shape(x)[1:]
@@ -119,10 +112,10 @@ class DESOM:
             save_path='results/desom2'):
 
         logfile = open(save_path + '/desom2_log_{}.csv'.format(self.latent_dims), 'w')
-        fieldnames = ['iter', 'T', 'L', 'Lr', 'Lsom', 'Lkm', 'Ltop',
-                      'L_val', 'Lr_val', 'Lsom_val']
+        fieldnames = ['iter', 'T', 'L', 'Lr', 'Lsom', 'Lkm', 'Ltop', 'L_val', 'Lr_val', 'Lsom_val']
         logwriter = csv.DictWriter(logfile, fieldnames)
         logwriter.writeheader()
+        
         index = 0
         for ite in range(iterations):
             # Get training and validation batches
