@@ -62,7 +62,7 @@ class DESOM:
     def __init__(self, input_dims, map_size, latent):
         self.input_dims = input_dims    # expects integer, number of data points in a sample
         self.map_size = map_size        # expects a tuple, height and width (usually going to be square)
-        self.n_prototypes = map_size[0]*map_size[1]
+        self.n_prototypes = map_size[0] * map_size[1]
         self.latent=latent              # width at Autoencoder bottleneck
     
     def initialize(self):
@@ -70,7 +70,7 @@ class DESOM:
         Create DESOM architecture.
         """
         # Make autoencoder
-        self.autoencoder, self.encoder, self.decoder = cnn_1dae(input_dims=self.input_dims, latent_dims=self.latent)
+        self.autoencoder, self.encoder, self.decoder = CNN_1DAE(input_dims=self.input_dims, latent_dims=self.latent)
         
         # Attach SOM layer
         som_layer = SOMLayer(self.map_size, name='SOM')(self.encoder.output)
@@ -164,7 +164,7 @@ class DESOM:
         labels = np.arange(self.n_prototypes)
         tmp = np.expand_dims(y_pred, axis=1)
         d_row = np.abs(tmp-labels)//self.map_size[1]
-        d_col = np.abs(tmp%self.map_size[1]-labels%self.map_size[1])
+        d_col = np.abs(tmp%self.map_size[1] - labels%self.map_size[1])
         return d_row + d_col
     
     def neighborhood_function(self, x, T):
@@ -180,16 +180,15 @@ class DESOM:
         return np.exp(-(x**2)/(T**2))
     
     def fit(self, X_train,
-            iterations=10000,
-            som_iterations=10000,
-            eval_interval=100,
-            batch_size=256,
-            Tmax=10,
-            Tmin=0.1,
-            decay='exponential',
-            save_dir='results/tmp'):
+            iterations = 10000,
+            som_iterations = 10000,
+            eval_interval = 100,
+            batch_size = 256,
+            Tmax = 10,
+            Tmin = 0.1,
+            save_dir = 'models/desom1/'):
         """
-        Training procedure. # Model is saved only at end.
+        Training procedure.         # Model is saved only at end.
 
         # Arguments
            X_train: training set
@@ -199,7 +198,6 @@ class DESOM:
            batch_size: training batch size
            Tmax: initial temperature parameter
            Tmin: final temperature parameter
-           decay: type of temperature decay ('exponential' or 'linear')
            save_dir: path to existing directory where weights and logs are saved
         """
 
@@ -227,10 +225,7 @@ class DESOM:
 
             # Update temperature parameter
             if ite < som_iterations:
-                if decay == 'exponential':
-                    T = Tmax*(Tmin/Tmax)**(ite/(som_iterations-1))
-                elif decay == 'linear':
-                    T = Tmax - (Tmax-Tmin)*(ite/(som_iterations-1))
+                T = Tmax*(Tmin/Tmax)**(ite/(som_iterations-1))
             
             # Compute topographic weights batches
             w_batch = self.neighborhood_function(self.map_dist(y_pred), T)
