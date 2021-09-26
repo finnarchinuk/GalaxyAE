@@ -1,9 +1,11 @@
+'''
+This is largely a copy from Forest, with updates optimized for this project.
+'''
 from keras.layers import Input, Dense, Reshape, Flatten, Conv2D, LeakyReLU
 from keras.models import Model
 from keras import backend as K
 from SOM import SOMLayer
 import tensorflow as tf
-from keras.initializers import Identity, Zeros
 import numpy as np
 import csv
 
@@ -59,7 +61,7 @@ class DESOM:
         self.n_prototypes = map_size[0] * map_size[1]
         self.latent_dims = latent_dims
         
-    def initialize(self,architecture=None):
+    def initialize(self):
         self.autoencoder, self.encoder, self.decoder = CNN_2DAE(input_dims=self.input_dims, latent_dims=self.latent_dims)
         som_layer = SOMLayer(self.map_size, name='SOM')(self.encoder.output)
         # Create DESOM model
