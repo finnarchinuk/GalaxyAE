@@ -1,14 +1,3 @@
-'''
-two parts:
-   1) apply filtering
-   2) split data into train and test sets
-
-   (this doesn't try to manage memory footprint at all)
-
-# rewrote final lines, used 156GB. (85% of 190GB available)
-# takes about 30 minutes
-'''
-
 print('\n\n running select_spectra_refactored')
 import numpy as np
 from astropy.table import Table, vstack, Column
@@ -43,7 +32,9 @@ label_raws()
 
 
 
-''' PART 1: LOAD FILES, APPLY MASKING'''
+'''
+PART 1: LOAD FILES, APPLY COLUMNS FOR MASKING
+'''
 
 def load_and_merge_spec():
   ''' load each chunk
@@ -72,47 +63,72 @@ def load_and_merge_data():
     data=vstack([data,temp_data])
   return data
 
-def mask_extremes(spec_table, data, percentile_limit=0.5):
-  ''' adds a column to data table, ['flux outlier'].
-      if the spectrum has a peak outside the top or bottom 0.5
-      percentile it is considered an outlier
-      returns data with added column
-  '''
-  x_mins = spec_table['raw'].min(axis=1)
-  min_threshold = np.percentile(x_mins,percentile_limit)
-  print('min threshold',np.percentile(x_mins,percentile_limit))
-  min_mask = (x_mins > min_threshold)
+def mask_mins(spec_table, data, percentile_limit=0.5):
+    '''
+    labels spectra that have low flux values
+    '''
+    x_mins = spec_table['raw'].min(axis=1)
+    min_threshold = np.percentile(x_mins,percentile_limit)
+    print('min threshold',np.percentile(x_mins,percentile_limit))
+    min_mask = (x_mins > min_threshold)
+    data['low_flux_outlier'] = (min_mask != True)
+    return data
+    
+def id_high_flux(spec_table, data, percentile_limit=0.5):
+    '''
+    labels spectra that have high flux values
+    '''
+    x_maxes = spec_table['raw'].max(axis=1)
+    max_threshold = np.percentile(x_maxes,100-percentile_limit)
+    print('max threshold',np.percentile(x_maxes,100-percentile_limit))
+    max_mask = (x_maxes < max_threshold)
+    data['high_flux'] = (max_mask != True)
+    return data, max_threshold
 
-  x_maxes = spec_table['raw'].max(axis=1)
-  max_threshold = np.percentile(x_maxes,100-percentile_limit)
-  print('max threshold',np.percentile(x_maxes,100-percentile_limit))
-  max_mask = (x_maxes < max_threshold)
-
-  total_mask = min_mask * max_mask
-  data['flux_outlier'] = (total_mask != True)
-  return data
+EM_LINES = [108, 1554, 1603, 1453, 2973, 2989]
+def exclude_em_lines(spec_table, data, em_lines_list, max_flux_threshold, width=3):
+    '''
+    labels spectra that have high flux outside of known emission lines.
+    
+    em_lines_list: the centers of the emission lines at rest (in terms of wavelength bins)
+    width: em_line +/- width defines the region of acceptible emission line
+    '''
+    high_flux_raws = spec_table['raw']
+    all_outlier_mask = (spec_table['raw'] > max_flux_threshold)
+    for em_line in em_lines_list:
+        all_outlier_mask[:, em_line-width : em_line+width] = 0
+        
+    temp_column = Column(all_outlier_mask.max(axis=1),dtype=bool, name='high_flux_outlier')
+    data.add_column(temp_column)
+    return data
 
 
 my_spec = load_and_merge_spec() #returns a table of spectra
 my_wave = load_and_merge_wave() #returns a table of waves
 
-my_data = mask_extremes(my_spec,
-                        load_and_merge_data(),
-                        percentile_limit=0.5)
+# identify low flux outliers
+my_data = mask_mins(my_spec,
+                    load_and_merge_data(),
+                    percentile_limit = 0.5)
+# identify high flux outliers
+my_data, max_flux_threshold = id_high_flux(my_spec,
+                                           my_data,
+                                           percentile_limit = 0.5)
+# identify high flux outliers that are NOT emission lines
+my_data = exclude_em_lines(my_spec, my_data, EM_LINES, max_flux_threshold)
 
 
 # clean up data with masking
 #-> 'criteria':[min val, max val]
 MASKS = {'ngoodpixels': [3900, None],
-         'signal': [None, 3],
-         'chi2': [None, 50],
-         'meansn2': [5, None],
+         'meansn2': [10, None],
         }
 
 def select_by_param(data, param, internal_min=None, internal_max=None):
   ''' 
   generates a mask based on some parameter
   returns that mask
+  (eg, a minimum of 3900 'ngoodpixels' is required for the spectrum to be considered)
   '''
   assert type(param) == str
   if internal_min != None: min_mask = (data[param] >= internal_min)
@@ -145,15 +161,9 @@ apply_masks(my_data, MASKS)
 
 
 
-''' PART 2'''
-''' PART 2a: remove problem spectra '''
-
-mask = (my_data['masked_out'] == False)
-outlier_mask = (my_data['flux_outlier'] == False)
-total_mask = mask * outlier_mask
-print('total_mask sum:', total_mask.sum())
-
-''' PART 2b: apply train/test flags '''
+'''
+PART 2: SPLIT DATA INTO TRAIN/TEST/UNUSED SETS. SAVE.
+'''
 
 TEST_SIZE = 300_000
 
@@ -179,36 +189,41 @@ def train_test_flags(data, outlier_mask):
 
 
 mask = (my_data['masked_out'] == False)
-outlier_mask = (my_data['flux_outlier'] == False)
-total_mask = mask * outlier_mask
+low_flux_outlier = (my_data['low_flux_outlier'] == False)
+high_flux_outlier = (my_data['high_flux_outlier'] == False)
+total_mask = mask * low_flux_outlier * high_flux_outlier
 
 my_data = train_test_flags(my_data, total_mask)
 
 
-'''
-Part 2b: Save Training/Test sets.
-(Unused are the spectra that have been removed from both of these sets).
-'''
-suffix = 'june11b'
 
-UNUSED_SPEC_PATH = 
-UNUSED_DATA_PATH = 
-UNUSED_WAVE_PATH = 
+
+SUFFIX = 'DATE'
 
 # save train set
 train_mask = (my_data['Train_set'] == True)
-my_spec[train_mask].write('x_train1m_' + suffix + '.fits') #save the spec_table
-my_data[train_mask].write('y_train1m_' + suffix + '.fits') #save the data
-my_wave[train_mask].write('w_train1m_' + suffix + '.fits') #save the wave
+my_spec[train_mask].write('x_train1m_' + SUFFIX + '.fits') #save the spec_table
+my_data[train_mask].write('y_train1m_' + SUFFIX + '.fits') #save the data
+my_wave[train_mask].write('w_train1m_' + SUFFIX + '.fits') #save the wave
 
 # save test set
 test_mask = (my_data['Test_set'] == True)
-my_spec[test_mask].write('x_test1m_' + suffix + '.fits')
-my_data[test_mask].write('y_test1m_' + suffix + '.fits')
-my_wave[test_mask].write('w_test1m_' + suffix + '.fits')
+my_spec[test_mask].write('x_test1m_' + SUFFIX + '.fits')
+my_data[test_mask].write('y_test1m_' + SUFFIX + '.fits')
+my_wave[test_mask].write('w_test1m_' + SUFFIX + '.fits')
 
 # save unused set
 unused_mask = (total_mask != True)
-my_spec[unused_mask].write('x_unused1m_' + suffix + '.fits')
-my_data[unused_mask].write('y_unused1m_' + suffix + '.fits')
-my_wave[unused_mask].write('w_unused1m_' + suffix + '.fits')
+my_spec[unused_mask].write('x_unused1m_' + SUFFIX + '.fits')
+my_data[unused_mask].write('y_unused1m_' + SUFFIX + '.fits')
+my_wave[unused_mask].write('w_unused1m_' + SUFFIX + '.fits')
+
+
+# log cuts
+print('\n')
+print('ngp:',(my_data['ngoodpixels']<3900).sum())
+print('meansn2:',(my_data['meansn2']<10).sum())
+print('low flux outlier:',(my_data['low_flux_outlier']==True).sum())
+print('high flux:',(my_data['high_flux']==True).sum(),'(Not removed)')
+print('high flux outlier:',(my_data['high_flux_outlier']==True).sum(),'(Removed)')
+
