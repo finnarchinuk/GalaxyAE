@@ -21,8 +21,8 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument('--map_size', nargs='+', default=[15, 15], type=int)
 parser.add_argument('--gamma', default=5e-4, type=float, help='coefficient of self-organizing map loss')
-parser.add_argument('--iterations', default=125000, type=int)
-parser.add_argument('--som_iterations', default=100000, type=int)
+parser.add_argument('--iterations', default=65000, type=int)
+parser.add_argument('--som_iterations', default=50000, type=int)
 
 parser.add_argument('--model_batch_size', default=128, type=int)
 parser.add_argument('--Tmax', default=15.0, type=float)
@@ -30,7 +30,7 @@ parser.add_argument('--Tmin', default=0.7, type=float)
 parser.add_argument('--save_path', type=str)
 
 parser.add_argument('--lr', default=5e-5, type=float)
-parser.add_argument('--latent', default = 128, type=int)
+parser.add_argument('--latent', default = 256, type=int)
 parser.add_argument('--seed', default = 0, type=int)
 
 args = parser.parse_args()
@@ -50,7 +50,7 @@ print('batch_size:', args.model_batch_size)
 my_save_path = args.save_path
 
 # --------- Path
-SUFFIX = 'june11b'
+SUFFIX = 'DATE'
 x_train_path = 'x_train1m_' + SUFFIX + '.fits'
 y_train_path = 'y_train1m_' + SUFFIX + '.fits'
 
@@ -67,7 +67,7 @@ input_dims = x_train['raw'][0].shape[0]
 print('Normalizing X_train by 4050-4150 angstrom region')
 normalize_4050_region(x_train, y_train, w_train)
 
-print('Train size:',x_train['raw'].shape)
+print('Train shape:',x_train['raw'].shape)
 np.random.seed(args.seed)
 np.random.shuffle(X_train) # an extra shuffle before training.
 
@@ -85,7 +85,7 @@ som.initialize()
 som.compile(gamma, optimizer)
 
 
-#Train DESOM
+#Train DESOM. It is saved at end of training.
 som.init_som_weights(x_train['raw'])
 som.fit(x_train['raw'],
         iterations = args.iterations,
@@ -124,7 +124,7 @@ y_test['bmu'] = tmp_bmus2
 
 
 # ----------------------- ML_r, Heightmap, and Distribution -----------------------
-# (ML_r is a measure of mass to light given a spectrum. It's a nice sanity check)
+# (ML_r is a measure of mass to light given a spectrum, but shouldn't be used to determine quality of model.)
 
 attr_av = np.zeros(map_size[0] * map_size[1])
 heightmap = np.zeros(map_size[0] * map_size[1])
@@ -179,65 +179,3 @@ ax[1].axhline(0, c='red', alpha=0.5)
 ax[1].set_xlabel('noise')
 ax[1].set_ylabel('bias')
 plt.savefig('results/desom1/'+my_save_path+'/recon_bias.png')
-
-
-
-
-
-
-# --------- calculate reconstruction bias and ML_r/heightmap for training set ------
-print('starting plots using train sets\n')
-
-# ------------- calculate reconstruction error --------
-y_train = Table.read(y_train_path)
-
-recons, tmp_bmus = som.model.predict(x_train['raw'])
-tmp_bmus2 = np.argmin(tmp_bmus, axis=1)
-y_train['bmu'] = tmp_bmus2
-
-# -------- plot ML_r and heightmap --------
-attr_av = np.zeros(map_size[0] * map_size[1])
-heightmap = np.zeros(map_size[0] * map_size[1])
-
-for bmu in range(map_size[0] * map_size[1]):
-    masked = (y_train['bmu'] == int(bmu))
-    temp_list = y_train['ML_r'][masked]
-    attr_av[bmu] = np.median(np.log(temp_list))
-    heightmap[bmu] = y_train[masked].sum()
-
-plt.figure()
-plt.imshow(attr_av.reshape(map_size))
-plt.title('log ML_r average')
-plt.colorbar()
-plt.savefig('results/desom1/'+my_save_path+'/log_ML_r_median_training_set.png')
-plt.clf()
-#
-plt.figure()
-plt.imshow(heightmap.reshape(map_size))
-plt.title('x_train heightmap')
-plt.colorbar()
-plt.savefig('results/desom1/'+my_save_path+'/heightmap_training_set.png')
-plt.clf()
-
-
-# ----------- recon bias --------------
-print('train mse:', mean_squared_error(recons, x_train['raw']))
-
-# calculate bias in reconstruction error
-print('delta_mean (train):', np.mean(recons - x_train['raw']))
-print('delta_median (train):', np.median(recons - x_train['raw']))
-delta_mean = np.mean(recons - x_train['raw'], axis=1)
-delta_median = np.median(recons - x_train['raw'], axis=1)
-
-fig,ax=plt.subplots(2,1)
-ax[0].scatter(y_train['ML_r'], delta_mean, s=4, alpha=0.2)
-ax[0].axhline(0,c='red',alpha=0.1)
-ax[0].set_xlabel('ML_r')
-ax[0].set_ylabel('bias')
-
-ax[1].scatter(y_train['meansn2'], delta_mean, s=4, alpha=0.2)
-ax[1].axhline(0,c='red',alpha=0.1)
-ax[1].set_xlabel('noise')
-ax[1].set_ylabel('bias')
-plt.savefig('results/desom1/'+my_save_path+'/recon_bias_training_set.png')
-plt.clf()
