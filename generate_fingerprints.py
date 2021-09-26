@@ -11,10 +11,8 @@ import numpy as np
 
 
 # load data and tables
-SUFFIX = 'june11bmu'
+SUFFIX = 'DATE'
 MAP_SIZE = 15 * 15
-
-vac_table = Table.read('full_vac.fits') # generated from a value added catalogue (see morpho_table.py)
 my_train = Table.read('y_train1m_' + SUFFIX + '.fits')
 my_test = Table.read('y_test1m_' + SUFFIX + '.fits')
 my_unused = Table.read('y_unused1m_' + SUFFIX + '.fits')
@@ -26,41 +24,44 @@ train_fp = np.zeros((len(unique_ids), MAP_SIZE))
 test_fp = np.zeros((len(unique_ids), MAP_SIZE))
 unused_fp = np.zeros((len(unique_ids), MAP_SIZE))
 
+
 # generate FPs for each galaxy
 for gal_index, gal_id in enumerate(unique_ids):
+  # select the galaxy by 'mangaID'
   mask_train = (my_train['mangaID'] == gal_id)
   mask_test = (my_test['mangaID'] == gal_id)
   mask_unused = (my_unused['mangaID'] == gal_id)
-  #
+
+  # select 'bmu' for that galaxy
   temp_train = my_train[mask_train]['bmu']
   temp_test = my_test[mask_test]['bmu']
   temp_unused = my_unused[mask_unused]['bmu']
-  #
+
+  # fill FP
   for BMU in range(MAP_SIZE):
-    hmask_train = (temp_train == BMU)
-    train_fp[gal_index, BMU] = hmask_train.sum()
+    bmu_mask_train = (temp_train == BMU)
+    train_fp[gal_index, BMU] = bmu_mask_train.sum()
     #
-    hmask_test = (temp_test == BMU)
-    test_fp[gal_index, BMU] = hmask_test.sum()
+    bmu_mask_test = (temp_test == BMU)
+    test_fp[gal_index, BMU] = bmu_mask_test.sum()
     #
-    hmask_unused = (temp_unused == BMU)
-    unused_fp[gal_index, BMU] = hmask_unused.sum()
+    bmu_mask_unused = (temp_unused == BMU)
+    unused_fp[gal_index, BMU] = bmu_mask_unused.sum()
+
+    
+# calculate average age of spectra in galaxy
+# (this is used to help select an average galaxy later for plotting)
+av_age = np.zeros(len(unique_ids))
+stack_data = vstack([my_train, my_test]) #only looking at used spectra
+
+for gal_index, gal_id in enumerate(unique_ids):
+    mask = (stack_data['mangaID'] == gal_id)
+    av_age[gal_index] = np.mean(stack_data[mask]['logage'])
 
 
-  
 # define table for fingerprints
-FP_table = Table(names = ['mangaID', 'train_fp', 'test_fp', 'unused_fp'],
-                 data = [unique_ids, train_fp, test_fp, unused_fp])
-                 
-
-# Add galaxy parameters to fingerprint table
-for column_name in vac_table.colnames:
-    new_column = list()
-    for i in range(len(FP_table)):
-        mask = (FP_table['mangaID'][i] == vac_table['mangaID'])
-        new_column.append(vac_table[k][mask][0])
-    temp_column = Column(name=column_name, data=np.array(new_column))
-    FP_table.add_column(temp_column)
+FP_table = Table(names = ['mangaID', 'train_fp', 'test_fp', 'unused_fp', 'av_age'],
+                 data = [unique_ids, train_fp, test_fp, unused_fp, av_age])
 
 
 # save fingerprints
