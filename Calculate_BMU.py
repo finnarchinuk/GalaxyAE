@@ -16,12 +16,12 @@ from astropy.cosmology import FlatLambdaCDM
 from DESOM_streamlined import DESOM
 from Utils import normalize_4050_region
 
-SUFFIX = 'june11b' #which dataset to use?
-UPDATED_SUFFIX = 'june11bmu' #where to save these modified dataset
+SUFFIX = 'DATE' # select the datasets
+UPDATED_SUFFIX = 'DATE_bmu' # where to save these updated datasets
 
 
 #----------------------------- Model Path -----------------------------------
-MODEL, map_size = 'june12a', (15,15)
+MODEL, map_size = 'MODEL_name', (15,15)
 model_path = 'results/desom1/'+MODEL+'/DESOM_model_final.h5'
 
 #-------------------------- Load the DESOM model ----------------------------
@@ -41,6 +41,7 @@ def calc_bmu(data, spec, som):
   _, tmp_bmus = som.model.predict(spec)
   tmp_bmus2 = np.argmin(tmp_bmus, axis=1)
   data['bmu'] = tmp_bmus2
+
 
 def calc_sSFR(data):
   ''' takes data
