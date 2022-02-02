@@ -3,6 +3,7 @@
 What is all this?
 1) This project is an application of https://github.com/FlorentF9/DESOM for clustering MaNGA spectra, and subsequently clustering galaxies.
 2) Computation was primarily done on ComputeCanada Cedar Cluster at SFU in 2020/21.
+3) https://arxiv.org/abs/2112.03425
 
 
 ![MaNGA DESOM Pipeline](https://user-images.githubusercontent.com/76233047/134795641-758f833d-45bf-4fa8-8244-08586f2ba473.png)
